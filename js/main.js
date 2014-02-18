@@ -1,5 +1,9 @@
 $(function(){
 	var objects = [];
+    /**
+	*  Draw user created objects on svg element
+	*  @param svg - svg root element
+    */
 	function drawIntro(svg){
 		for (var i = 0; i < objects.length; i++) {
 			var obj = objects[i];
@@ -15,7 +19,9 @@ $(function(){
 			}
 		};
 	}
-
+    /**
+	*  Format serialized form to compatible object
+    */
 	function getDTO(formObject){
 		var dto = {};		
 		for (var i = 0; i < formObject.length; i++) {
@@ -26,8 +32,10 @@ $(function(){
 		};
 		return dto;
 	}
-
-	function downloadFile(url){
+    /**
+	*  Iframe hack for ajax to download file
+    */
+	function sendRequestIframe(url){
         var iframe;
         iframe = document.getElementById("download-container");
         if (iframe === null)
@@ -39,7 +47,33 @@ $(function(){
         }
         iframe.src = url;   
     }
+    /**
+	*  Temporary form submit hack to send data and support file download
+    */
+    function sendDataForm(data){
+		//create temporary form to send data
+		var form = $("<form></form>",{
+			method:"POST",
+			id:"tempForm",
+			action:"draw/save.php",
+			target : "_blank"
+			//action:"javascript:;"
+		});
+		
+		var hiddenInput = $("<input></input", {
+			name : "objects",
+			type : "hidden",
+			value : jQuery.param(data),
+		});
 
+		$(form).append(hiddenInput);
+		$("body").append(form);
+		$(form).submit();
+		$(form).remove();
+    }
+    /**
+	*  Format serialized shape object to {type,x1,y1,x2,y2,radius,color}
+    */
 	function getShapeDTO(formObject, type){
 		var dto = {};
 		dto['type'] = type;
@@ -64,40 +98,49 @@ $(function(){
 		return dto;
 	}
 
-	$('#new-shape').on('click', function(e){		
+	var $newButton = $('#new-shape');
+	var $openButton = $('#open-shape');
+	$newButton.on('click', function(e){		
 		var drawing = {};
+		//hide main buttons
+		$newButton.hide();
+		$openButton.hide();
 
-		$('#new-shape, #open-shape').hide();
 		var mainForm = _.template($("script.new-form").html());
 		$("#drawing-form").html(mainForm);
 		var $drawingForm = $("#new-drawing-form");
+		var $shapeForm = $("#new-shape-form");
+
 
 		$drawingForm .find("button.cancel").on('click',function(){			
-			$('#new-shape, #open-shape').show();
-			$("#new-drawing-form").remove();
-			$("#new-shape-form").remove();
+			$newButton.show();
+			$openButton.show();
+			$drawingForm.remove();
+			$shapeForm.remove();
 			objects = [];
-		});	
+		});
 
 		$drawingForm .find("button.preview").on('click',function(){
 			drawing = getDTO($("#new-drawing-form").serializeArray());
 			var width = drawing.width?drawing.width:500;
 			var height = drawing.height?drawing.height:500;
 			$("body").append('<div id="preview-drawing"></div>');
-			$("#preview-drawing").dialog({
+			
+			var $prevDrawing = $("#preview-drawing");
+			$prevDrawing.dialog({
 				modal: true,
 				width: width,
 				height: height,
 				buttons: {
 			        Close: function() {
 			          $( this ).dialog( "close" );
-			          $("#preview-drawing").remove();
+			          $prevDrawing.remove();
 			        }
 		      	}
 			});
 
 			//create svg
-			$("#preview-drawing").svg({
+			$prevDrawing.svg({
 				onLoad: drawIntro, 
 				width: width, 
 				height: height
@@ -106,60 +149,37 @@ $(function(){
 
 		$drawingForm .find("button.save").on('click',function(e){			
 			if($drawingForm[0].checkValidity()){//use HTML5 validation
-				e.preventDefault();//don't submit form whitout processing
+				//prevent submit for new-drawing form whitout processing the data first
+				e.preventDefault();
 				drawing = getDTO($("#new-drawing-form").serializeArray());
 				drawing['objects'] = objects;
 				delete drawing.objectSelector;
 
-				var form = $("<form></form>",{
-					method:"POST",
-					id:"tempForm",
-					action:"draw/save.php",
-					target : "_blank"
-					//action:"javascript:;"
-				});
-				
-				var hidden = $("<input></input", {
-					name : "objects",
-					type : "hidden",
-					value : jQuery.param(drawing),
-				});
-
-				$(form).append(hidden);
-				$("body").append(form);
-				$(form).submit();
-				$(form).remove();
-				/*$.ajax({
-					method: "POST",
-					url: "draw/save.php",
-					data: drawing,
-					success: function(data){
-						downloadFile(url);
-					}
-				})*/
+				sendDataForm(drawing);
 			}			
 		});			
 
 		$drawingForm.find("select.objectSelector").change(function(e){						
 			$("#new-shape-form").remove();
 			var shape = $(this).val();
+			//generate form for new shape
 			switch(shape){
 				case "circle":
 					var circleForm = _.template($("script.circle-form-template").html());
-					$("div#drawing-form").append(circleForm);
+					$drawingForm.append(circleForm);
 				break;
 				case "line":
 					var lineForm = _.template($("script.line-form-template").html());
-					$("div#drawing-form").append(lineForm);
+					$drawingForm.append(lineForm);
 				break;
 				default:
 				break;
 			}
-
-			$("#new-shape-form").find("button.addObject").on('click', function(e){	
-				if($("#new-shape-form")[0].checkValidity()){
+			var $newShapeForm = $("#new-shape-form");
+			$newShapeForm.find("button.addObject").on('click', function(e){	
+				if($newShapeForm[0].checkValidity()){
 					e.preventDefault();
-					var dto = getShapeDTO($("#new-shape-form").serializeArray(), shape);				
+					var dto = getShapeDTO($newShapeForm.serializeArray(), shape);				
 					objects.push(dto);
 					$drawingForm.find("select.objects").append('<option value="'+dto.type+'">'+dto.type+'</option>');
 				}						
@@ -167,29 +187,17 @@ $(function(){
 		});			
 	});
 
-	$('#open-shape').on('click', function(e){
-		$('#new-shape, #open-shape').hide();
+	$openButton.on('click', function(e){
+		$newButton.hide();
+		$openButton.hide();
 		var mainForm = _.template($("script.open-form").html());
 		$("#drawing-form").html(mainForm);
 		var $openForm = $("#open-drawing-form");
 
 		$openForm .find("button.cancel").on('click',function(){
-			$('#new-shape, #open-shape').show();
-			$("#open-drawing-form").remove();
+			$newButton.show();
+			$openButton.show();
+			$openForm.remove();
 		});	
-
-/*		$openForm .find("button.save").on('click',function(){
-			//get file for uploading
-
-			//send ajax	
-			$.ajax({
-				method: "POST",
-				url: "http://0.0.0.0/drawing/open.php",
-				data: JSON.stringify(dto),
-				success: function(data){
-					console.log("ajax open success!!");
-				}
-			})	
-		});*/	
 	});
 });
