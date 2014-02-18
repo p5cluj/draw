@@ -1,11 +1,6 @@
-<form action="<?php echo $_SERVER['PHP_SELF'] ?>" method="POST" enctype="multipart/form-data">
-<input type="file" name="file" id="file">
-<input type="submit" name="submit" value="submit">
-</form>
-
-
 <?php
-
+include "csvToSvg.php";
+$_svgDraw = new csvToSvg();
 if(isset($_REQUEST['submit']) && $_REQUEST['submit']=='submit'){
 	if ( isset($_FILES["file"])) {
 
@@ -15,19 +10,10 @@ if(isset($_REQUEST['submit']) && $_REQUEST['submit']=='submit'){
 
         }
         else {
-                 //Print file details
-             echo "Upload: " . $_FILES["file"]["name"] . "<br />";
-             echo "Type: " . $_FILES["file"]["type"] . "<br />";
-             echo "Size: " . ($_FILES["file"]["size"] / 1024) . " Kb<br />";
-             echo "Temp file: " . $_FILES["file"]["tmp_name"] . "<br />";
-             $a = array();
-            ini_set('auto_detect_line_endings',TRUE);
-				$handle = fopen($_FILES["file"]["tmp_name"],'r');
-				 while ( ($data = fgetcsv($handle) ) !== FALSE ) {
-					$a[] = $data;	
-				}
-			ini_set('auto_detect_line_endings',FALSE);
-			echo "<pre>"; print_r($a); echo "</pre>";
+            $_svgDraw->getCsvName();
+            $_svgDraw->generateSvgElement();
+            $_svgDraw->generateSvg();
+            echo $_svgDraw->getSvg();          
         }
      } else {
              echo "No file selected <br />";
